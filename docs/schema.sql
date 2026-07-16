@@ -113,19 +113,16 @@ CREATE TABLE reading_progress (
 
 -- ============================================================
 --  TRIGGERS — mantêm updated_at fresco automaticamente
+--  Só para tabelas cuja fonte da verdade é o backend.
+--  reading_progress NÃO tem trigger: o updated_at vem do celular
+--  no sync (POST /api/sync/progress) e é usado como critério de
+--  last-write-wins no merge; sobrescrever aqui quebraria o sync.
 -- ============================================================
 CREATE TRIGGER trg_manga_updated
 AFTER UPDATE ON manga
 FOR EACH ROW
 BEGIN
     UPDATE manga SET updated_at = datetime('now') WHERE id = NEW.id;
-END;
-
-CREATE TRIGGER trg_progress_updated
-AFTER UPDATE ON reading_progress
-FOR EACH ROW
-BEGIN
-    UPDATE reading_progress SET updated_at = datetime('now') WHERE id = NEW.id;
 END;
 
 

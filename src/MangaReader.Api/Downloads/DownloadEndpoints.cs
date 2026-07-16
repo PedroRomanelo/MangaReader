@@ -155,6 +155,34 @@ public static class DownloadEndpoints
         // GET /api/downloads — snapshot pra debugging/monitoramento.
         app.MapGet("/api/downloads", (DownloadQueue queue) => Results.Ok(queue.Snapshot()));
 
+        // GET /api/chapters/{id}/file — stream do .cbz pro celular.
+        // Range é essencial: cabo/Wi-Fi caem no meio do sync e o app precisa
+        // conseguir retomar de onde parou.
+        app.MapGet("/api/chapters/{id:long}/file", async (
+            long id,
+            SqliteConnectionFactory connections,
+            CancellationToken cancellationToken) =>
+        {
+            using var conn = connections.Create();
+            var row = await conn.QueryFirstOrDefaultAsync<ChapterFileRow>(
+                "SELECT id AS Id, local_path AS LocalPath FROM chapter WHERE id = @Id LIMIT 1;",
+                new { Id = id });
+            if (row is null)
+            {
+                return Results.NotFound(new { message = $"Chapter {id} não encontrado." });
+            }
+            if (string.IsNullOrEmpty(row.LocalPath) || !File.Exists(row.LocalPath))
+            {
+                return Results.NotFound(new { message = "Arquivo .cbz não disponível para este capítulo." });
+            }
+
+            return Results.File(
+                path: row.LocalPath,
+                contentType: "application/vnd.comicbook+zip",
+                fileDownloadName: $"chapter-{id}.cbz",
+                enableRangeProcessing: true);
+        });
+
         // DELETE /api/chapters/{id}/file — apaga o .cbz e volta status pra 'none'.
         app.MapDelete("/api/chapters/{id:long}/file", async (
             long id,

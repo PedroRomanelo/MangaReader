@@ -3,6 +3,7 @@ using MangaReader.Api.Downloads;
 using MangaReader.Api.Infra;
 using MangaReader.Api.Library;
 using MangaReader.Api.MangaDex;
+using MangaReader.Api.Sync;
 using Microsoft.Data.Sqlite;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -66,6 +67,8 @@ builder.Services.AddHttpClient<AtHomeReporter>();
 builder.Services.AddHttpClient();
 builder.Services.AddHostedService<DownloadWorker>();
 
+builder.Services.AddScoped<SyncService>();
+
 var app = builder.Build();
 
 DatabaseBootstrapper.Initialize(app.Services);
@@ -90,5 +93,6 @@ app.MapGet("/api/health", () => Results.Ok(new
 
 app.MapLibraryEndpoints();
 app.MapDownloadEndpoints();
+app.MapSyncEndpoints();
 
 app.Run();
