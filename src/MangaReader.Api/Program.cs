@@ -1,4 +1,5 @@
 using MangaReader.Api.Infra;
+using MangaReader.Api.Library;
 using MangaReader.Api.MangaDex;
 using Microsoft.Data.Sqlite;
 
@@ -39,6 +40,7 @@ if (string.IsNullOrWhiteSpace(mangaDexOptions.UserAgent))
 builder.Services.AddSingleton(mangaDexOptions);
 builder.Services.AddSingleton<MangaDexRateLimiter>();
 builder.Services.AddHttpClient<MangaDexClient>();
+builder.Services.AddScoped<LibraryService>();
 
 var app = builder.Build();
 
@@ -49,5 +51,7 @@ app.MapGet("/api/health", () => Results.Ok(new
     status = "ok",
     timestampUtc = DateTime.UtcNow.ToString("o"),
 }));
+
+app.MapLibraryEndpoints();
 
 app.Run();

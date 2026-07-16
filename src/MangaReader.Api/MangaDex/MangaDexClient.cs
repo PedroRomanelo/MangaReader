@@ -84,6 +84,23 @@ public sealed class MangaDexClient
         return chapters;
     }
 
+    public async Task<MangaSearchResult> GetMangaAsync(
+        string mangadexId,
+        string? preferredLanguage = null,
+        CancellationToken cancellationToken = default)
+    {
+        var qs = new QueryStringBuilder().Add("includes[]", "cover_art");
+        var envelope = await GetJsonAsync<EntityEnvelope<MangaResource>>(
+            $"manga/{Uri.EscapeDataString(mangadexId)}{qs}", atHome: false, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (envelope.Data is null)
+        {
+            throw new InvalidOperationException($"Manga {mangadexId} não encontrado na MangaDex.");
+        }
+        return ToSearchResult(envelope.Data, preferredLanguage);
+    }
+
     public async Task<AtHomeServer> GetAtHomeServerAsync(string chapterId, CancellationToken cancellationToken = default)
     {
         var response = await GetJsonAsync<AtHomeServerResponse>(

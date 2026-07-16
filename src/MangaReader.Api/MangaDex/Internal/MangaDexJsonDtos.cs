@@ -12,6 +12,12 @@ internal sealed class ListEnvelope<T>
     public int Total { get; set; }
 }
 
+internal sealed class EntityEnvelope<T>
+{
+    public string? Result { get; set; }
+    public T? Data { get; set; }
+}
+
 internal sealed class MangaResource
 {
     public string Id { get; set; } = "";
