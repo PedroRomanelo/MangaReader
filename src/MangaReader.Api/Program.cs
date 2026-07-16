@@ -1,4 +1,5 @@
 using MangaReader.Api.Infra;
+using MangaReader.Api.MangaDex;
 using Microsoft.Data.Sqlite;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -24,6 +25,20 @@ dbOptions.ConnectionString = csBuilder.ToString();
 
 builder.Services.AddSingleton(dbOptions);
 builder.Services.AddSingleton<SqliteConnectionFactory>();
+
+var mangaDexOptions = builder.Configuration
+    .GetSection(MangaDexOptions.SectionName)
+    .Get<MangaDexOptions>() ?? new MangaDexOptions();
+
+if (string.IsNullOrWhiteSpace(mangaDexOptions.UserAgent))
+{
+    throw new InvalidOperationException(
+        $"'{MangaDexOptions.SectionName}:UserAgent' não configurado. A MangaDex exige um User-Agent real.");
+}
+
+builder.Services.AddSingleton(mangaDexOptions);
+builder.Services.AddSingleton<MangaDexRateLimiter>();
+builder.Services.AddHttpClient<MangaDexClient>();
 
 var app = builder.Build();
 
