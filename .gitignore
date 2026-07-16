@@ -1,0 +1,15 @@
+# Build output
+bin/
+obj/
+
+# User-specific files
+*.user
+*.suo
+
+# IDE
+.vs/
+.idea/
+.vscode/
+
+# Dados do usuário — biblioteca-mestre (banco + .cbz) NÃO vai pro repo
+data/

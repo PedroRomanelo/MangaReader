@@ -1,0 +1,5 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MangaReader.Api/MangaReader.Api.csproj" />
+  </Folder>
+</Solution>

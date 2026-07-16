@@ -1,0 +1,43 @@
+sequenceDiagram
+  participant App as App (celular)
+  participant API as Backend .NET
+  participant DB as SQLite
+  participant FS as Disco (.cbz)
+  participant MX as MangaDex
+
+  Note over App,API: Fase 1 — verificação de conexão
+  App->>API: GET /api/health
+  API-->>App: 200 OK
+
+  Note over App,API: Fase 2 — manifest e diff
+  App->>API: GET /api/sync/manifest
+  API->>DB: SELECT chapters com download_status = done
+  DB-->>API: lista de capítulos
+  API-->>App: manifest [ { chapterId, hasFile, fileSize } ]
+  App->>App: diff com library_item local
+
+  Note over App,FS: Fase 3 — download seletivo
+  loop Para cada capítulo faltando
+    App->>API: GET /api/chapters/{id}/file
+    API->>FS: stream .cbz (suporta Range)
+    FS-->>API: bytes
+    API-->>App: stream CBZ
+    App->>App: grava .cbz no cartão SD
+    App->>App: insere em library_item
+  end
+
+  Note over App,DB: Fase 4 — sync de progresso
+  App->>API: POST /api/sync/progress [ { chapterId, lastPage, isRead } ]
+  API->>DB: merge por updatedAt (last-write-wins)
+  DB-->>API: ok
+  API-->>App: 200 OK
+
+  Note over API,MX: Download em background (independente do sync)
+  API->>MX: GET /at-home/server/{chapterId}
+  MX-->>API: baseUrl + hash + file list
+  loop Páginas (respeitando 5 req/s)
+    API->>MX: GET {baseUrl}/data/{hash}/{file}
+    MX-->>API: bytes da página
+  end
+  API->>FS: salva .cbz montado
+  API->>DB: download_status = done
