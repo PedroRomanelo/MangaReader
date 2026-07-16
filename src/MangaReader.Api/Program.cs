@@ -1,3 +1,5 @@
+using Dapper;
+using MangaReader.Api.Downloads;
 using MangaReader.Api.Infra;
 using MangaReader.Api.Library;
 using MangaReader.Api.MangaDex;
@@ -42,9 +44,43 @@ builder.Services.AddSingleton<MangaDexRateLimiter>();
 builder.Services.AddHttpClient<MangaDexClient>();
 builder.Services.AddScoped<LibraryService>();
 
+var downloadOptions = builder.Configuration
+    .GetSection(DownloadOptions.SectionName)
+    .Get<DownloadOptions>() ?? new DownloadOptions();
+
+if (string.IsNullOrWhiteSpace(downloadOptions.LibraryRoot))
+{
+    throw new InvalidOperationException(
+        $"'{DownloadOptions.SectionName}:LibraryRoot' não configurado em appsettings.");
+}
+
+if (!Path.IsPathRooted(downloadOptions.LibraryRoot))
+{
+    downloadOptions.LibraryRoot = Path.GetFullPath(
+        Path.Combine(builder.Environment.ContentRootPath, downloadOptions.LibraryRoot));
+}
+
+builder.Services.AddSingleton(downloadOptions);
+builder.Services.AddSingleton<DownloadQueue>();
+builder.Services.AddHttpClient<AtHomeReporter>();
+builder.Services.AddHttpClient();
+builder.Services.AddHostedService<DownloadWorker>();
+
 var app = builder.Build();
 
 DatabaseBootstrapper.Initialize(app.Services);
+
+// Se o processo caiu enquanto algo estava em 'downloading', a fila em memória
+// perdeu o item. Marcamos como 'none' pra ficar disponível pra re-request.
+using (var startupScope = app.Services.CreateScope())
+{
+    using var conn = startupScope.ServiceProvider.GetRequiredService<SqliteConnectionFactory>().Create();
+    var reset = conn.Execute("UPDATE chapter SET download_status = 'none' WHERE download_status = 'downloading';");
+    if (reset > 0)
+    {
+        app.Logger.LogWarning("Reset de {Count} chapter(s) 'downloading' → 'none' no startup.", reset);
+    }
+}
 
 app.MapGet("/api/health", () => Results.Ok(new
 {
@@ -53,5 +89,6 @@ app.MapGet("/api/health", () => Results.Ok(new
 }));
 
 app.MapLibraryEndpoints();
+app.MapDownloadEndpoints();
 
 app.Run();
