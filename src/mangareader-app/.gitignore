@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.DS_Store
+
+# Capacitor gera android/ com `npx cap add android`; regenerável.
+android/
+ios/
+
+# Env locais
+.env
+.env.local
+*.log

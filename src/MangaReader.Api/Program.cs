@@ -69,7 +69,21 @@ builder.Services.AddHostedService<DownloadWorker>();
 
 builder.Services.AddScoped<SyncService>();
 
+// LAN-only, usuário único: liberado. Quando entrar auth, restringe origens.
+// Content-Range / Accept-Ranges precisam ser expostos pro fetch() do app
+// enxergar o suporte a Range no stream do .cbz.
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy => policy
+        .AllowAnyOrigin()
+        .AllowAnyMethod()
+        .AllowAnyHeader()
+        .WithExposedHeaders("Content-Length", "Content-Range", "Accept-Ranges"));
+});
+
 var app = builder.Build();
+
+app.UseCors();
 
 DatabaseBootstrapper.Initialize(app.Services);
 

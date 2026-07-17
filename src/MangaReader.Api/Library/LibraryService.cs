@@ -1,3 +1,4 @@
+using System.Data.Common;
 using System.Globalization;
 using Dapper;
 using MangaReader.Api.Infra;
@@ -26,26 +27,36 @@ public sealed class LibraryService
 
     public async Task<IReadOnlyList<LibraryListItem>> ListAsync(CancellationToken cancellationToken)
     {
+        // Não usa Dapper aqui: Microsoft.Data.Sqlite reporta colunas computadas
+        // (count(*) em subquery) como BLOB via GetFieldType() quando o primeiro
+        // valor é null ou o resultado é vazio. Dapper cacheia um deserializer
+        // exigindo byte[] e explode quando o valor vem como long. Ler direto
+        // pelo DbDataReader com GetInt64 contorna sem depender do type map.
         using var connection = _connectionFactory.Create();
-        var rows = await connection.QueryAsync<LibraryRow>(
-            @"SELECT
-                m.id                                                                     AS Id,
-                m.mangadex_id                                                            AS MangadexId,
-                m.title                                                                  AS Title,
-                m.cover_filename                                                         AS CoverFilename,
-                (SELECT count(*) FROM chapter c WHERE c.manga_id = m.id)                 AS TotalChapters,
-                (SELECT count(*) FROM chapter c WHERE c.manga_id = m.id
-                                                 AND c.download_status = 'done')        AS DownloadedChapters
-              FROM manga m
-              ORDER BY m.title;").ConfigureAwait(false);
+        using var command = (DbCommand)connection.CreateCommand();
+        command.CommandText = @"
+SELECT m.id, m.mangadex_id, m.title, m.cover_filename,
+       (SELECT count(*) FROM chapter c WHERE c.manga_id = m.id),
+       (SELECT count(*) FROM chapter c WHERE c.manga_id = m.id
+                                        AND c.download_status = 'done')
+  FROM manga m
+  ORDER BY m.title;";
 
-        return rows.Select(r => new LibraryListItem(
-            r.Id,
-            r.MangadexId,
-            r.Title,
-            BuildCoverUrl(r.MangadexId, r.CoverFilename),
-            (int)r.TotalChapters,
-            (int)r.DownloadedChapters)).ToList();
+        var items = new List<LibraryListItem>();
+        using var reader = await command.ExecuteReaderAsync(cancellationToken).ConfigureAwait(false);
+        while (await reader.ReadAsync(cancellationToken).ConfigureAwait(false))
+        {
+            var mangadexId = reader.GetString(1);
+            var coverFilename = reader.IsDBNull(3) ? null : reader.GetString(3);
+            items.Add(new LibraryListItem(
+                Id: reader.GetInt64(0),
+                MangadexId: mangadexId,
+                Title: reader.GetString(2),
+                CoverUrl: BuildCoverUrl(mangadexId, coverFilename),
+                TotalChapters: (int)reader.GetInt64(4),
+                DownloadedChapters: (int)reader.GetInt64(5)));
+        }
+        return items;
     }
 
     public async Task<LibraryMangaAdded> AddAsync(string mangadexId, string language, CancellationToken cancellationToken)
@@ -154,13 +165,4 @@ public sealed class LibraryService
             : null;
     }
 
-    // count(*) do SQLite volta como Int64 — o record precisa combinar exatamente
-    // com a assinatura do ctor pro Dapper materializar via ctor de record.
-    private sealed record LibraryRow(
-        long Id,
-        string MangadexId,
-        string Title,
-        string? CoverFilename,
-        long TotalChapters,
-        long DownloadedChapters);
 }
