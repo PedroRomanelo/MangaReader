@@ -38,6 +38,7 @@ export interface ManifestChapter {
   downloadStatus: string;
   hasFile: boolean;
   fileSize: number | null;
+  pageCount: number;
 }
 
 export interface ManifestManga {
@@ -68,4 +69,25 @@ export async function getManifest(): Promise<ManifestManga[]> {
 
 export async function chapterFileUrl(chapterId: number): Promise<string> {
   return `${await baseUrl()}/api/chapters/${chapterId}/file`;
+}
+
+export interface SyncMergeResult {
+  received: number;
+  merged: number;
+}
+
+export interface ProgressPayloadItem {
+  chapterMangadexId: string;
+  lastPage: number;
+  isRead: boolean;
+  updatedAt: string;
+}
+
+export async function pushProgress(items: ProgressPayloadItem[]): Promise<SyncMergeResult> {
+  const res = await apiFetch('/api/sync/progress', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(items),
+  });
+  return res.json() as Promise<SyncMergeResult>;
 }

@@ -12,7 +12,8 @@ public sealed record SyncManifestChapter(
     string? Chapter,
     string DownloadStatus,
     bool HasFile,
-    long? FileSize);
+    long? FileSize,
+    int PageCount);
 
 public sealed record SyncProgressItem(
     string ChapterMangadexId,

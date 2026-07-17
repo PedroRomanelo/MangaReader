@@ -1,11 +1,15 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { listLibrary, NotConfiguredError, type LibraryItem } from '../lib/api';
+  import { listLibrary, pushProgress, NotConfiguredError, type LibraryItem } from '../lib/api';
+  import { getAllProgress } from '../lib/progress';
   import { go } from '../lib/router';
 
   let items: LibraryItem[] = [];
   let loading = true;
   let error: string | null = null;
+
+  let syncing = false;
+  let syncMsg: string | null = null;
 
   async function load() {
     loading = true;
@@ -23,15 +27,38 @@
     }
   }
 
+  async function sync() {
+    syncing = true;
+    syncMsg = null;
+    try {
+      const all = await getAllProgress();
+      if (all.length === 0) {
+        syncMsg = 'Nada pra sincronizar.';
+        return;
+      }
+      const res = await pushProgress(all);
+      syncMsg = `${res.merged}/${res.received} sincronizado(s).`;
+    } catch (e) {
+      syncMsg = e instanceof Error ? e.message : String(e);
+    } finally {
+      syncing = false;
+    }
+  }
+
   onMount(load);
 </script>
 
 <main class="app-shell">
   <div class="topbar">
     <h1>Biblioteca</h1>
+    <button on:click={sync} disabled={syncing}>{syncing ? 'sync…' : 'Sincronizar'}</button>
     <button on:click={load} disabled={loading}>{loading ? '…' : 'Atualizar'}</button>
     <button on:click={() => go({ name: 'settings' })}>Ajustes</button>
   </div>
+
+  {#if syncMsg}
+    <div class="sync-note">{syncMsg}</div>
+  {/if}
 
   {#if error}
     <div class="error-banner">{error}</div>
@@ -100,4 +127,13 @@
   .title { font-size: 13px; line-height: 1.25; margin-bottom: 2px; }
   .count { font-size: 12px; }
   code { background: var(--bg-elev); padding: 1px 6px; border-radius: 4px; font-size: 12px; }
+  .sync-note {
+    background: var(--bg-elev);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin: 12px 0;
+    font-size: 13px;
+    color: var(--text-dim);
+  }
 </style>

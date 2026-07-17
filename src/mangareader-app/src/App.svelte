@@ -4,6 +4,7 @@
   import { getServerUrl } from './lib/settings';
   import Library from './screens/Library.svelte';
   import MangaDetail from './screens/MangaDetail.svelte';
+  import Reader from './screens/Reader.svelte';
   import Settings from './screens/Settings.svelte';
 
   onMount(async () => {
@@ -18,4 +19,10 @@
   <Library />
 {:else if $route.name === 'manga'}
   <MangaDetail mangaId={$route.mangaId} />
+{:else if $route.name === 'reader'}
+  <Reader
+    mangaId={$route.mangaId}
+    chapterId={$route.chapterId}
+    chapterMangadexId={$route.chapterMangadexId}
+  />
 {/if}

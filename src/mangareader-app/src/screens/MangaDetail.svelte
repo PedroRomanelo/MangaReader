@@ -2,6 +2,7 @@
   import { onMount } from 'svelte';
   import { getManifest, NotConfiguredError, type ManifestManga, type ManifestChapter } from '../lib/api';
   import { downloadChapter, deleteChapter, localChapterSize } from '../lib/storage';
+  import { getProgress, type ProgressEntry } from '../lib/progress';
   import { go } from '../lib/router';
 
   export let mangaId: number;
@@ -10,9 +11,8 @@
   let loading = true;
   let error: string | null = null;
 
-  // chapterId -> tamanho local em bytes (ou null se ausente)
   const localSizes = new Map<number, number | null>();
-  // chapterId -> estado da UI
+  const progressByChapter = new Map<string, ProgressEntry | null>();
   const busy = new Map<number, 'downloading' | 'deleting'>();
 
   function humanBytes(n: number): string {
@@ -31,7 +31,7 @@
         error = `Mangá ${mangaId} não encontrado no manifest.`;
         return;
       }
-      await refreshLocalSizes();
+      await Promise.all([refreshLocalSizes(), refreshProgress()]);
     } catch (e) {
       if (e instanceof NotConfiguredError) {
         go({ name: 'settings' });
@@ -50,7 +50,16 @@
         localSizes.set(c.chapterId, await localChapterSize(mangaId, c.chapterId));
       }),
     );
-    // força reatividade
+    manga = manga;
+  }
+
+  async function refreshProgress() {
+    if (!manga) return;
+    await Promise.all(
+      manga.chapters.map(async (c) => {
+        progressByChapter.set(c.mangadexId, await getProgress(c.mangadexId));
+      }),
+    );
     manga = manga;
   }
 
@@ -83,6 +92,15 @@
     }
   }
 
+  function openReader(c: ManifestChapter) {
+    go({
+      name: 'reader',
+      mangaId,
+      chapterId: c.chapterId,
+      chapterMangadexId: c.mangadexId,
+    });
+  }
+
   onMount(load);
 </script>
 
@@ -102,6 +120,7 @@
       {#each manga.chapters as c (c.chapterId)}
         {@const local = localSizes.get(c.chapterId)}
         {@const state = busy.get(c.chapterId)}
+        {@const prog = progressByChapter.get(c.mangadexId) ?? null}
         <li>
           <div class="ch-main">
             <div class="ch-title">
@@ -109,11 +128,18 @@
               {#if !c.hasFile}
                 <span class="tag warn">sem arquivo no servidor</span>
               {:else if local != null}
-                <span class="tag ok">no aparelho</span>
+                {#if prog?.isRead}
+                  <span class="tag ok">lido</span>
+                {:else if prog}
+                  <span class="tag prog">pág {prog.lastPage + 1}/{c.pageCount}</span>
+                {:else}
+                  <span class="tag ok">no aparelho</span>
+                {/if}
               {/if}
             </div>
             <div class="ch-sub muted">
-              {#if c.fileSize}servidor: {humanBytes(c.fileSize)}{/if}
+              {c.pageCount} páginas
+              {#if c.fileSize}<span class="dot">•</span>servidor: {humanBytes(c.fileSize)}{/if}
               {#if local != null}<span class="dot">•</span>local: {humanBytes(local)}{/if}
             </div>
           </div>
@@ -123,6 +149,7 @@
             {:else if state === 'deleting'}
               <button disabled>apagando…</button>
             {:else if local != null}
+              <button class="primary" on:click={() => openReader(c)}>ler</button>
               <button class="danger" on:click={() => onDelete(c)}>apagar</button>
             {:else}
               <button class="primary" on:click={() => onDownload(c)} disabled={!c.hasFile}>
@@ -148,7 +175,8 @@
   .ch-main { flex: 1; min-width: 0; }
   .ch-title { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .ch-sub { font-size: 12px; margin-top: 2px; }
-  .ch-actions button { min-width: 88px; }
+  .ch-actions { display: flex; gap: 6px; flex-shrink: 0; }
+  .ch-actions button { min-width: 72px; }
   .tag {
     font-size: 11px;
     padding: 1px 6px;
@@ -157,5 +185,6 @@
   }
   .tag.ok   { color: var(--ok);     border-color: var(--ok); }
   .tag.warn { color: var(--danger); border-color: var(--danger); }
+  .tag.prog { color: var(--accent); border-color: var(--accent); }
   .dot { margin: 0 6px; opacity: 0.5; }
 </style>

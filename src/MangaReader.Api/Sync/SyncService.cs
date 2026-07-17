@@ -28,6 +28,7 @@ public sealed class SyncService
                      c.download_status AS DownloadStatus,
                      c.local_path     AS LocalPath,
                      c.file_size_bytes AS FileSizeBytes,
+                     c.page_count     AS PageCount,
                      c.sort_number    AS SortNumber
               FROM manga m
               JOIN chapter c ON c.manga_id = m.id
@@ -45,7 +46,8 @@ public sealed class SyncService
                     r.ChapterLabel,
                     r.DownloadStatus,
                     HasFile: r.LocalPath is not null && r.DownloadStatus == "done",
-                    FileSize: r.FileSizeBytes)).ToList()))
+                    FileSize: r.FileSizeBytes,
+                    PageCount: (int)r.PageCount)).ToList()))
             .ToList();
     }
 
@@ -128,6 +130,7 @@ public sealed class SyncService
         string DownloadStatus,
         string? LocalPath,
         long? FileSizeBytes,
+        long PageCount,
         double? SortNumber);
 
     private sealed record ProgressRow(
